@@ -1,0 +1,129 @@
+// Universal AI Router Platform — Prisma schema (SQLite)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Universal Model Registry ----
+model ModelRecord {
+  id                String   @id
+  provider          String
+  family            String
+  displayName       String
+  contextLength     Int
+  maxOutputTokens   Int
+  speedScore        Float    // 0-100
+  qualityScore      Float
+  reasoningScore    Float
+  codingScore       Float
+  mathScore         Float
+  writingScore      Float
+  multilingualScore Float
+  visionSupport     Boolean  @default(false)
+  toolCalling       Boolean  @default(false)
+  functionCalling   Boolean  @default(false)
+  jsonMode          Boolean  @default(false)
+  structuredOutput  Boolean  @default(false)
+  embeddingSupport  Boolean  @default(false)
+  streaming         Boolean  @default(true)
+  freeOrPaid        String   @default("free")
+  benchmarkScore    Float    @default(0)
+  healthScore       Float    @default(100)
+  isActive          Boolean  @default(true)
+  isReal            Boolean  @default(false) // true = backed by z-ai-web-dev-sdk
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  healthChecks  HealthCheck[]
+  benchmarkRuns BenchmarkRun[]
+  usageLogs     UsageLog[]
+  cacheEntries  CacheEntry[]
+
+  @@index([provider])
+  @@index([family])
+  @@index([isActive])
+}
+
+// ---- Health Monitoring ----
+model HealthCheck {
+  id            String   @id @default(cuid())
+  modelId       String
+  status        String   // healthy | degraded | down
+  latencyMs     Int
+  successRate   Float
+  uptime        Float
+  tokensPerSec  Float
+  queueSize     Int
+  checkedAt     DateTime @default(now())
+  model         ModelRecord @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId, checkedAt])
+}
+
+// ---- Benchmark Engine ----
+model BenchmarkRun {
+  id               String   @id @default(cuid())
+  modelId          String
+  category         String   // coding | reasoning | math | writing | accuracy | hallucination
+  score            Float
+  samples          Int
+  durationMs       Int
+  runAt            DateTime @default(now())
+  model            ModelRecord @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId, category])
+}
+
+// ---- Usage / Analytics ----
+model UsageLog {
+  id            String   @id @default(cuid())
+  modelId       String
+  intent        String
+  promptTokens  Int
+  completionTokens Int
+  latencyMs     Int
+  success       Boolean
+  cached        Boolean  @default(false)
+  fallbackUsed  Boolean  @default(false)
+  userId        String   @default("anonymous")
+  createdAt     DateTime @default(now())
+  model         ModelRecord @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId, createdAt])
+  @@index([intent])
+  @@index([createdAt])
+}
+
+// ---- Semantic / Prompt Cache ----
+model CacheEntry {
+  id           String   @id @default(cuid())
+  modelId      String
+  promptHash   String
+  promptText   String
+  responseText String
+  intent       String
+  hitCount     Int      @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  model        ModelRecord @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([promptHash])
+  @@index([modelId])
+}
+
+// ---- API Keys / Auth (lightweight) ----
+model ApiKey {
+  id         String   @id @default(cuid())
+  label      String
+  keyHash    String   @unique
+  prefix     String
+  role       String   @default("user")
+  rateLimit  Int      @default(60)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+}
